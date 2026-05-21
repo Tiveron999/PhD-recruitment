@@ -29,9 +29,10 @@ Read the Anthropic paper carefully. Make sure you understand why this approach i
 ### 2. Train or obtain an autoencoder for a small open-source model
 Choose a small (small enough you can experiment with your available compute) and recent open-source language model. Document your choice and why.
 
-### 3. Reimplement the natural language autoencoder evaluation
-Implement the methodology from the paper:
-You do not need to match the exact scale of the Anthropic paper. Your ability to make meaningful assumptions and simplifications is also part of the task.
+### 3. Reimplement the natural language autoencoder
+Implement the two paired components described in the paper (activation verbalizer, activation reconstructor). The primary evaluation metric is Fraction of Variance Explained (FVE): how much of the variance in the original activations is recovered from the natural language roundtrip. The Anthropic paper reports 0.6–0.8 FVE on Claude models; your numbers on a smaller model will differ, and explaining why they differ is part of the task.
+
+You do not need to match the exact scale or training setup of the Anthropic paper. Your ability to make meaningful assumptions and simplifications is also part of the task.
 
 ### 4. Evaluate and analyze
 - Study quantitative results (reconstruction scores, distributions, etc.).
@@ -90,3 +91,6 @@ Generic, vague, or LLM-generated prose in README that does not demonstrate genui
 
 We are evaluating also evaluating your capability to research with AI.
 
+## Questions
+
+Should you have any question, ask them as an issue on https://github.com/ASSERT-KTH/phd-recruitment-2026-ai4code so that everybody can see the answer.
