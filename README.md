@@ -1,5 +1,10 @@
 # PhD Recruitment Task May 2026
 
+## Choices
+For this experiment, I selected Qwen3-0.6B as the target model. This choice was driven by the strict compute constraints of the task (optimizing for a single free-tier Colab GPU) and the architectural requirements of the Natural Language Autoencoder (NLA). At ~0.6 billion parameters, Qwen is lightweight enough that I can comfortably load the target model, the Activation Verbalizer (AV), and the Activation Reconstructor (AR) into VRAM simultaneously in bfloat16 precision. Furthermore, as a highly performant recent model, it possesses a sufficiently rich residual stream to make activation verbalization a meaningful exercise, avoiding the degenerate representations sometimes found in older, smaller architectures (like GPT-2 Small).
+
+
+
 ## Before You Start
 
 This PhD recruitment at KTH with Prof. Monperrus is extremely competitive: we received 73 applications for the PhD position. Applicants come from top research universities worldwide. The bar is very high, and most submissions will not lead to an offer. Only the most rigorous, insightful, and clearly communicated results will stand out.
