@@ -62,19 +62,13 @@ Figure 2: Geometric Breakdown of Latent Space Interpolation. This diagram illust
 Because auto-regressive generation proved too fragile for out-of-distribution interpolated vectors, I bypassed text generation entirely. Using Teacher Forcing, I measured the Cross-Entropy Loss of the model when presented with the interpolated vector alongside the gold-standard text of Concept A and Concept B.
 
 Table 1: Cross-Entropy Loss across the Latent Sweep
-```latex
-$$
-\begin{array}{c|c|c}
-\hline
-\textbf{Interpolation } (\alpha) & \textbf{Loss for Concept A (Music)} & \textbf{Loss for Concept B (Hockey)} \\ \hline
-1.0 \text{ (Pure A)} & 4.2812 & 4.8750 \\
-0.8 & 4.3125 & 4.8125 \\
-0.5 & 4.5312 & 4.6875 \\
-0.2 \text{ (The Boundary)} & 4.5938 & 4.5938 \\
-0.0 \text{ (Pure B)} & 4.5938 & 4.6250 \\ \hline
-\end{array}
-$$
-```
+| Interpolation ($\alpha$) | Loss for Concept A (Music) | Loss for Concept B (Hockey) |
+| :---: | :---: | :---: |
+| **1.0** (Pure A) | 4.2812 | 4.8750 |
+| **0.8** | 4.3125 | 4.8125 |
+| **0.5** | 4.5312 | 4.6875 |
+| **0.2** (The Boundary) | 4.5938 | 4.5938 |
+| **0.0** (Pure B) | 4.5938 | 4.6250 |
 
 <img width="691" height="470" alt="image" src="https://github.com/user-attachments/assets/f9f39b6d-19c1-447c-bb71-2a04d3b3d2c4" />
 
