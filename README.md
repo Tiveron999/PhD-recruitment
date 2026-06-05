@@ -76,7 +76,7 @@ $$
 
 <img width="691" height="470" alt="image" src="https://github.com/user-attachments/assets/f9f39b6d-19c1-447c-bb71-2a04d3b3d2c4" />
 
-A line chart plotting the X-shape intersection of Loss A and Loss B from the table above.
+Figure 3: A line chart plotting the X-shape intersection of Loss A and Loss B from the table above.
 
 ### Analysis 
 The sequence loss provides a mathematical proof of concept blending. As $\alpha$ sweeps from 1.0 to 0.0, the loss for Concept A steadily increases (the model "forgets" the music video), while the loss for Concept B decreases (the model gains confidence in the hockey statistics). At exactly $\alpha = 0.2$, the losses perfectly intersect. This demonstrates that the NLA successfully mapped the discrete text into a smooth, continuous, and highly structured geometric space.
