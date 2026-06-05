@@ -78,7 +78,7 @@ Figure 3: A line chart plotting the X-shape intersection of Loss A and Loss B fr
 The sequence loss provides a mathematical proof of concept blending. As $\alpha$ sweeps from 1.0 to 0.0, the loss for Concept A steadily increases (the model "forgets" the music video), while the loss for Concept B decreases (the model gains confidence in the hockey statistics). At exactly $\alpha = 0.2$, the losses perfectly intersect. This demonstrates that the NLA successfully mapped the discrete text into a smooth, continuous, and highly structured geometric space.
 
 ## Reproducibility & Repository Structure
-To reproduce these results, execute the provided Jupyter notebooks in a standard GPU environment (e.g., Google Colab with an L4 or T4 GPU).
+To reproduce these results, execute the provided Jupyter notebook in a standard GPU environment (e.g., Google Colab with an L4 or T4 GPU).
 
 ## Repository Layout
 
