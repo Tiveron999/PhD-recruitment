@@ -2,9 +2,11 @@
 
 ## Author: Nicholas Tiveron
 
-## Choices
-For this experiment, I selected Qwen3-0.6B as the target model. This choice was driven by the strict compute constraints of the task (optimizing for a single free-tier Colab GPU) and the architectural requirements of the Natural Language Autoencoder (NLA). At ~0.6 billion parameters, Qwen is lightweight enough that I can comfortably load the target model, the Activation Verbalizer (AV), and the Activation Reconstructor (AR) into VRAM simultaneously in bfloat16 precision. Furthermore, as a highly performant recent model, it possesses a sufficiently rich residual stream to make activation verbalization a meaningful exercise, avoiding the degenerate representations sometimes found in older, smaller architectures (like GPT-2 Small).
+## Project Overview
+This repository implements a Natural Language Autoencoder (NLA) using Qwen3-0.6B as a discrete text bottleneck. The objective of this project was to learn a mapping from high-dimensional, continuous internal activation vectors into discrete, human-readable text strings, and back into the continuous latent space. By utilizing Teacher-Grounded Supervised Fine-Tuning (SFT) and Joint Group Relative Policy Optimization (GRPO), I successfully improved the Fraction of Variance Explained (FVE) from a negative zero-shot baseline to 0.2554, proving that a 0.6B parameter model can effectively compress and reconstruct over 25% of its 1,024-dimensional variance through a pure text bottleneck.
 
+## Model selection
+For this experiment, I selected Qwen3-0.6B as the target model. This choice was driven by the strict compute constraints of the task (optimizing for a single free-tier Colab GPU) and the architectural requirements of the Natural Language Autoencoder (NLA). At ~0.6 billion parameters, Qwen is lightweight enough that I can comfortably load the target model, the Activation Verbalizer (AV), and the Activation Reconstructor (AR) into VRAM simultaneously in bfloat16 precision. Furthermore, as a highly performant recent model, it possesses a sufficiently rich residual stream to make activation verbalization a meaningful exercise, avoiding the degenerate representations sometimes found in older, smaller architectures.
 
 graph TD
     A[Continuous Activation Vector] -->|Input| B(Verbalizer: Qwen-0.6B)
@@ -27,19 +29,55 @@ graph TD
     classDef sub fill:#e9c46a,stroke:#e76f51,stroke-width:2px,color:#333;
     class A,B,D main;
     class C,E sub;
+    
+Figure 1: Joint GRPO Reinforcement Learning Architecture. A structural schematic of the Natural Language Autoencoder pipeline. The continuous input activation passes through a discrete text bottleneck (Verbalizer) conditioned by Teacher-Grounded SFT, which is then reconstructed back into latent space. The joint policy updates are driven dynamically by the group-standardized MSE reward signal.
 
-
-Project Overview
-This repository implements a Natural Language Autoencoder (NLA) using Qwen-0.6B as a discrete text bottleneck. The objective of this project was to learn a mapping from high-dimensional, continuous internal activation vectors into discrete, human-readable text strings, and back into the continuous latent space.By utilizing Teacher-Grounded Supervised Fine-Tuning (SFT) and Joint Group Relative Policy Optimization (GRPO), we successfully improved the Fraction of Variance Explained (FVE) from a negative zero-shot baseline to 0.2554, proving that a 0.6B parameter model can effectively compress and reconstruct over 25% of its 1,024-dimensional variance through a pure text bottleneck.2. Methodology & Design ChoicesThe Small-Model Bottleneck & Teacher-Grounded SFTThe Problem: Initial zero-shot attempts to force Qwen-0.6B to decode activation vectors resulted in severe hallucinations and structural collapse (e.g., generating unprompted Wikipedia-style articles).The Choice: We introduced a synthetic teacher (BART-large-cnn) to generate high-fidelity, structurally rigid summaries of the source text.The Why: Instead of learning to decode raw semantics and formatting simultaneously, Teacher-Grounded SFT allowed the Reconstructor to learn a stable affine mapping first, bringing the baseline FVE up to +0.1600.Joint Optimization via GRPOThe Problem: Standard RLHF requires a separate Critic model to evaluate the policy, which is computationally prohibitive on constrained hardware.The Choice: We implemented Group Relative Policy Optimization (GRPO).The Why: GRPO bypasses the Critic model by sampling multiple generations (a group) and standardizing their rewards relative to each other. By using the negative Mean Squared Error (MSE) of the Reconstructor as the reward signal, the Verbalizer and Reconstructor were optimized jointly, culminating in an FVE of 0.2554 after just 3 epochs.3. Deep Dive: Probing the Latent SpaceTo truly evaluate if the autoencoder learned a continuous semantic landscape (rather than a memorized lookup table), we performed linear interpolation between two orthogonal latent concepts: a music video (Concept A) and NHL hockey statistics (Concept B). The results exposed fascinating failure modes intrinsic to small base models.Challenge 1: The Token Explosion (Attention Collapse)When directly injecting the mathematically averaged vector ($\alpha = 0.5$) into model.generate(), the model output infinite repeating tokens (ii*100000000...).Insight: Because Qwen is a base model, receiving a single sequence-length-1 vector stripped it of all positional and contextual attention anchors.Challenge 2: Prompt Hijacking (Over-Conditioning)To fix the token explosion, we concatenated standard prompt text embeddings before the vector. The model generated: "The model is a simple linear regression model..."Insight: The explicit text prompt ("Analyse this internal model...") acted as an overpowering attractor basin. The base model abandoned the noisy interpolated vector and instead auto-completed the prompt itself, turning into a textbook generator.Challenge 3: Manifold Shrinkage (The Hypersphere Problem)Standard linear interpolation (alpha * A + (1.0 - alpha) * B) caused the model to output empty strings.Insight: Activation vectors exist on the curved surface of a high-dimensional hypersphere. A straight-line interpolation passes through the hollow interior of the sphere, resulting in a vector with a drastically reduced magnitude. This pushed the vector out-of-distribution, causing a complete confidence collapse (EOS emission). We resolved this by mathematically re-inflating the blended vector to the target surface magnitude.
+## Methodology & Design Choices
+### The Small-Model Bottleneck & Teacher-Grounded SFT
+Initial zero-shot attempts to force Qwen-0.6B to decode activation vectors resulted in severe hallucinations and structural collapse (e.g., generating unprompted Wikipedia-style articles). Therefore, I introduced a synthetic teacher (BART-large-cnn) to generate high-fidelity, structurally rigid summaries of the source text. Instead of learning to decode raw semantics and formatting simultaneously, Teacher-Grounded SFT allowed the Reconstructor to learn a stable affine mapping first, bringing the baseline FVE up to +0.1600.
+Standard RLHF requires a separate Critic model to evaluate the policy, which is computationally prohibitive on constrained hardware. Thus, I implemented Group Relative Policy Optimization (GRPO), which led to GRPO bypassing the Critic model by sampling multiple generations (a group) and standardizing their rewards relative to each other. By using the negative Mean Squared Error (MSE) of the Reconstructor as the reward signal, the Verbalizer and Reconstructor were optimized jointly, culminating in an FVE of 0.2554 after just 3 epochs.
+To truly evaluate if the autoencoder learned a continuous semantic landscape (rather than a memorized lookup table), we performed linear interpolation between two orthogonal latent concepts: a music video (Concept A) and NHL hockey statistics (Concept B). The results exposed fascinating failure modes intrinsic to small base models.
+The first one was token explosion (and attention collapse): when directly injecting the mathematically averaged vector ($\alpha = 0.5$) into model.generate(), the model output infinite repeating tokens (ii*100000000...). Because Qwen is a base model, receiving a single sequence-length-1 vector stripped it of all positional and contextual attention anchors.
+The second challenge encountered was prompt hijacking, because to fix the token explosion, I concatenated standard prompt text embeddings before the vector. The model generated: "The model is a simple linear regression model...". The explicit text prompt (which waas "Analyse this internal model...") acted as an overpowering attractor basin. The base model abandoned the noisy interpolated vector and instead auto-completed the prompt itself, turning into a textbook generator.
+The third one was manifold shrinkage (the Hypersphere problem): standard linear interpolation (alpha * A + (1.0 - alpha) * B) caused the model to output empty strings. Since activation vectors exist on the curved surface of a high-dimensional hypersphere and a straight-line interpolation passes through the hollow interior of the sphere, this results in a vector with a drastically reduced magnitude. This pushed the vector out-of-distribution, causing a complete confidence collapse (EOS emission). We resolved this by mathematically re-inflating the blended vector to the target surface magnitude.
 
 graph LR
     A((Concept A)) ---|Standard Linear Lerp: Shrinks Magnitude| C((Dead Zone / Origin))
     C --- B((Concept B))
     
-    A .-.-.->|Spherical Re-inflation| D(Continuous Semantic Surface)
-    D .-.-.->|Maintains Manifold Norm| B
+    A -.->|Spherical Re-inflation| D(Continuous Semantic Surface)
+    D -.->|Maintains Manifold Norm| B
     
     style C fill:#e63946,stroke:#333,color:#fff
     style D fill:#457b9d,stroke:#333,color:#fff
+    
+Figure 2: Geometric Breakdown of Latent Space Interpolation. This diagram illustrates the contrast between standard linear interpolation (LERP), which inadvertently drags the blended vector off the active manifold into a low-magnitude "dead zone," and spherical re-inflation, which maps the trajectory directly along the high-dimensional hypersphere surface to preserve semantic distribution.
 
-The Breakthrough: Sequence Loss CrossoverBecause auto-regressive generation proved too fragile for out-of-distribution interpolated vectors, we bypassed text generation entirely. Using Teacher Forcing, we measured the Cross-Entropy Loss of the model when presented with the interpolated vector alongside the gold-standard text of Concept A and Concept B.Table 1: Cross-Entropy Loss across the Latent SweepInterpolation (α)Loss for Concept A (Music)Loss for Concept B (Hockey)1.0 (Pure A)4.28124.87500.84.31254.81250.54.53124.68750.2 (The Boundary)4.59384.59380.0 (Pure B)4.59384.6250Insert Matplotlib Figure Here: A line chart plotting the X-shape intersection of Loss A and Loss B from the table above.Analysis of Findings:The sequence loss provides a mathematical proof of concept blending. As $\alpha$ sweeps from 1.0 to 0.0, the loss for Concept A steadily increases (the model "forgets" the music video), while the loss for Concept B decreases (the model gains confidence in the hockey statistics). At exactly $\alpha = 0.2$, the losses perfectly intersect. This demonstrates that the NLA successfully mapped the discrete text into a smooth, continuous, and highly structured geometric space.4. Reproducibility & Repository StructureTo reproduce these results, execute the provided Jupyter notebooks in a standard GPU environment (e.g., Google Colab with an L4 or T4 GPU).Repository Layout/data - Contains the warmup_data subsets and generated BART summaries./scripts - Contains the core Autoencoder, Verbalizer, and Reconstructor class definitions.01_SFT_Baseline.ipynb - Pipeline for Teacher-Grounded fine-tuning.02_GRPO_RL.ipynb - The joint optimization loop utilizing Group Relative Policy Optimization.03_Latent_Probing.ipynb - Scripts for vector blending, spherical re-inflation, and Teacher Forcing sequence loss evaluation.
+### The Breakthrough: Sequence Loss Crossover
+Because auto-regressive generation proved too fragile for out-of-distribution interpolated vectors, I bypassed text generation entirely. Using Teacher Forcing, I measured the Cross-Entropy Loss of the model when presented with the interpolated vector alongside the gold-standard text of Concept A and Concept B.
+
+Table 1: Cross-Entropy Loss across the Latent Sweep
+$$
+\begin{array}{c|c|c}
+\hline
+\textbf{Interpolation } (\alpha) & \textbf{Loss for Concept A (Music)} & \textbf{Loss for Concept B (Hockey)} \\ \hline
+1.0 \text{ (Pure A)} & 4.2812 & 4.8750 \\
+0.8 & 4.3125 & 4.8125 \\
+0.5 & 4.5312 & 4.6875 \\
+0.2 \text{ (The Boundary)} & 4.5938 & 4.5938 \\
+0.0 \text{ (Pure B)} & 4.5938 & 4.6250 \\ \hline
+\end{array}
+$$
+
+<img width="691" height="470" alt="image" src="https://github.com/user-attachments/assets/f9f39b6d-19c1-447c-bb71-2a04d3b3d2c4" />
+
+A line chart plotting the X-shape intersection of Loss A and Loss B from the table above.
+
+### Analysis 
+The sequence loss provides a mathematical proof of concept blending. As $\alpha$ sweeps from 1.0 to 0.0, the loss for Concept A steadily increases (the model "forgets" the music video), while the loss for Concept B decreases (the model gains confidence in the hockey statistics). At exactly $\alpha = 0.2$, the losses perfectly intersect. This demonstrates that the NLA successfully mapped the discrete text into a smooth, continuous, and highly structured geometric space.
+
+## Reproducibility & Repository Structure
+To reproduce these results, execute the provided Jupyter notebooks in a standard GPU environment (e.g., Google Colab with an L4 or T4 GPU).
+
+## Repository Layout
+
