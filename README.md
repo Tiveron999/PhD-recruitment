@@ -8,6 +8,8 @@ This repository implements a Natural Language Autoencoder (NLA) using Qwen3-0.6B
 ## Model selection
 For this experiment, I selected Qwen3-0.6B as the target model. This choice was driven by the strict compute constraints of the task (optimizing for a single free-tier Colab GPU) and the architectural requirements of the Natural Language Autoencoder (NLA). At ~0.6 billion parameters, Qwen is lightweight enough that I can comfortably load the target model, the Activation Verbalizer (AV), and the Activation Reconstructor (AR) into VRAM simultaneously in bfloat16 precision. Furthermore, as a highly performant recent model, it possesses a sufficiently rich residual stream to make activation verbalization a meaningful exercise, avoiding the degenerate representations sometimes found in older, smaller architectures.
 
+
+```mermaid
 graph TD
     A[Continuous Activation Vector] -->|Input| B(Verbalizer: Qwen-0.6B)
     
@@ -29,6 +31,7 @@ graph TD
     classDef sub fill:#e9c46a,stroke:#e76f51,stroke-width:2px,color:#333;
     class A,B,D main;
     class C,E sub;
+```
     
 Figure 1: Joint GRPO Reinforcement Learning Architecture. A structural schematic of the Natural Language Autoencoder pipeline. The continuous input activation passes through a discrete text bottleneck (Verbalizer) conditioned by Teacher-Grounded SFT, which is then reconstructed back into latent space. The joint policy updates are driven dynamically by the group-standardized MSE reward signal.
 
@@ -41,6 +44,7 @@ The first one was token explosion (and attention collapse): when directly inject
 The second challenge encountered was prompt hijacking, because to fix the token explosion, I concatenated standard prompt text embeddings before the vector. The model generated: "The model is a simple linear regression model...". The explicit text prompt (which waas "Analyse this internal model...") acted as an overpowering attractor basin. The base model abandoned the noisy interpolated vector and instead auto-completed the prompt itself, turning into a textbook generator.
 The third one was manifold shrinkage (the Hypersphere problem): standard linear interpolation (alpha * A + (1.0 - alpha) * B) caused the model to output empty strings. Since activation vectors exist on the curved surface of a high-dimensional hypersphere and a straight-line interpolation passes through the hollow interior of the sphere, this results in a vector with a drastically reduced magnitude. This pushed the vector out-of-distribution, causing a complete confidence collapse (EOS emission). We resolved this by mathematically re-inflating the blended vector to the target surface magnitude.
 
+```mermaid
 graph LR
     A((Concept A)) ---|Standard Linear Lerp: Shrinks Magnitude| C((Dead Zone / Origin))
     C --- B((Concept B))
@@ -50,6 +54,7 @@ graph LR
     
     style C fill:#e63946,stroke:#333,color:#fff
     style D fill:#457b9d,stroke:#333,color:#fff
+```
     
 Figure 2: Geometric Breakdown of Latent Space Interpolation. This diagram illustrates the contrast between standard linear interpolation (LERP), which inadvertently drags the blended vector off the active manifold into a low-magnitude "dead zone," and spherical re-inflation, which maps the trajectory directly along the high-dimensional hypersphere surface to preserve semantic distribution.
 
