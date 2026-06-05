@@ -1,4 +1,4 @@
-# PhD Recruitment Task May 2026
+# Natural Language Autoencoding via Joint GRPO Reinforcement Learning
 
 ## Author: Nicholas Tiveron
 
