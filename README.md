@@ -154,5 +154,5 @@ Note on Stochastic Variance: The metrics and evaluations reported in this docume
 ## Repository Layout
 
 ```text
-├── README.md               # Project documentation and experimental report
-└── nla_pipeline.ipynb      # Jupyter notebook containing the work (SFT, GRPO, and probing loops)
+├── README.md                       # Project documentation and experimental report
+└── phd_recruitment_task.ipynb      # Jupyter notebook containing the work (SFT, GRPO, and probing loops)
