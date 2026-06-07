@@ -40,7 +40,14 @@ Figure 1: Joint GRPO Reinforcement Learning Architecture. A structural schematic
 Before training the NLA, I had to construct a dataset of continuous representations. I extracted hidden state activations from Qwen-0.6B by feeding it a raw text corpus. Specifically, I targeted one of the middle layers of the transformer (Layer 16 of 27) to capture balanced semantic representations, avoiding the overly lexical early layers and the overly task-specific final layers. I extracted the activation vector corresponding to the final token of the input sequence, yielding a static 1,024-dimensional continuous vector representing the entire context of that sample.
 
 ### The Small-Model Bottleneck & Teacher-Grounded SFT
-My initial zero-shot attempts to force Qwen-0.6B to decode activation vectors resulted in severe hallucinations and structural collapse (e.g., generating unprompted Wikipedia-style articles). Therefore, I introduced a synthetic teacher (BART-large-cnn) to generate high-fidelity, structurally rigid summaries of the source text. Instead of forcing the model to learn raw semantics and text formatting simultaneously, Teacher-Grounded SFT allowed the Reconstructor to learn a stable affine mapping first, bringing the baseline FVE up to +0.1600.
+My initial zero-shot attempts to force Qwen-0.6B to decode internal activation vectors resulted in severe hallucinations and structural collapse (e.g., generating unprompted Wikipedia-style articles). This happened because asking a small 0.6B model to simultaneously figure out high-dimensional vector alignment and open-ended text formatting is an overly complex optimization landscape.
+
+To resolve this, I introduced a synthetic teacher using BART-large-cnn. The text generation pipeline operated as follows:
+1) Target Generation: I fed the raw text corpus through BART-large-cnn to generate highly condensed, structurally rigid semantic summaries. Because this specific BART variant is strictly fine-tuned for CNN/DailyMail summarization, its outputs have incredibly low lexical variance and predictable grammatical structures.
+2) Feature Alignment: These static summaries served as our ground-truth text targets. Crucially, the continuous activation vectors extracted from Qwen's Layer 16 (gathered from the same raw input text) were paired directly with these condensed BART summaries.
+3) Loss Function Optimization: During the SFT phase, the Verbalizer was trained using standard Cross-Entropy loss to auto-regressively predict BART’s summary tokens, conditioned on the continuous activation vector.
+
+Using BART in this manner acted as a textual regularizer. It stripped away conversational filler and low-level syntactic noise from the raw corpus, providing a clean "semantic baseline" for the Verbalizer. Instead of forcing the system to learn complex conversational nuances right away, this grounded alignment allowed the Reconstructor to master a stable affine mapping first, bringing the baseline FVE up to $+0.1600$.
 
 ### Joint Optimization via GRPO
 Standard RLHF requires a separate Critic model to evaluate the policy, which is computationally prohibitive on constrained hardware. Thus, I implemented Group Relative Policy Optimization (GRPO). This architectural choice allowed me to bypass a dedicated Critic model entirely. For each activation vector, the Verbalizer samples a "group" of multiple text generations. The Reconstructor calculates the Mean Squared Error (MSE) for each generation. Crucially, these MSE scores are then standardized relative to the group (subtracting the group mean and dividing by the standard deviation) to create relative advantage rewards.
@@ -96,7 +103,9 @@ Table 3: Mean group reconstruction rewards across reinforcement learning epochs.
 The policy gradient actively penalized text generations that dropped vital semantic features. By the final epoch, the mean group reward stabilized near $-3.51$. I conducted a final, comprehensive round-trip verification pass across the validation dataset to compute the system-wide FVE:Final Post-RL Reconstructor FVE Score: 0.2554This represents an increase of 59.6% over the SFT baseline. The joint loop successfully optimized the continuous-to-discrete text bottleneck, proving that the model learned to compress over a quarter of its 1,024-dimensional hidden layer variance into human-readable tokens.
 
 ## Latent Space Probing & Blending Experiments
-While FVE proves the model can reconstruct data, it does not prove the NLA learned a mathematically continuous geometric space; a high FVE could theoretically be achieved by a model memorizing a discrete lookup table. To prove the mapping was a true continuum, I performed linear interpolation between two orthogonal latent concepts from the dataset: Concept A (a music video depicting disadvantaged communities) and Concept B (NHL hockey statistics for the Columbus Blue Jackets).
+While FVE proves the model can reconstruct data, it does not prove the NLA learned a mathematically continuous geometric space; a high FVE could theoretically be achieved by a model memorizing a discrete lookup table. To validate the continuous latent properties of the NLA's text-bottleneck pipeline, I conducted an interpolation experiment. This serves as a direct proof that the NLA organizes its bottleneck space geometrically rather than treating tokens as isolated, arbitrary points, ensuring that smooth movements in continuous space map to smooth transitions in text probability.
+
+For this test, I performed linear interpolation between two orthogonal latent concepts from the dataset: Concept A (a music video depicting disadvantaged communities) and Concept B (NHL hockey statistics for the Columbus Blue Jackets). The text profiles used to anchor these two points were the exact high-fidelity summaries generated by the BART-large-cnn teacher during the SFT phase, allowing me to measure how the NLA transitions between the two known linguistic spaces.
 
 I swept a blending parameter $\alpha \in [1.0, 0.0]$ across the latent space. This experiment exposed three fascinating failure modes intrinsic to small base models before leading to a robust evaluation methodology:
 
@@ -139,6 +148,8 @@ The sequence loss metrics offer definitive proof of a continuous latent space ma
 
 ## Reproducibility & Repository Structure
 To reproduce these results, execute the provided Jupyter notebook in a standard GPU environment (e.g., Google Colab with an L4 or T4 GPU).
+
+Note on Stochastic Variance: The metrics and evaluations reported in this document reflect a different run of the pipeline compared to the cell outputs present in the notebook. Due to the stochastic nature of autoregressive LLM sampling during the GRPO rollout phase, as well as minor hardware non-determinism in low-precision (bfloat16) environments, absolute values for FVE and Cross-Entropy loss may exhibit minor numerical variance across distinct training seeds. However, the overall convergence trajectories and structural trends remain consistent.
 
 ## Repository Layout
 
